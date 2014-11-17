@@ -42,12 +42,12 @@ if (typeof exports != 'undefined' && exports) {
 	if (typeof require != 'undefined' && require) {
 		var crypto = require('crypto');
 				
-		function sha256(s) {
+		var sha256 = function (s) {
 			var h = crypto.createHash('sha256');
 			h.end(s);
 			return h.read().toString('hex');
 		}
 		
-		expots.sha256 = sha256;
+		exports.sha256 = sha256;
 	}
 }
