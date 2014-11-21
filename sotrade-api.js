@@ -104,6 +104,10 @@ SoTradeConnection.prototype.init = function() {
 	}).bind(this));
 };
 
+SoTradeConnection.prototype.raw = function() {
+	return this.socket;
+};
+
 SoTradeConnection.prototype.resetExpectedResponses = function() {
 	for (var i in this.ids)
 		if (this.ids[i])
@@ -308,6 +312,8 @@ SoTradeConnection.prototype.once = function(evname, cb) {
 	};
 	
 	this.on(evname, cb_, fakeEventEmitter);
+	
+	return deferred.promise;
 };
 
 SoTradeConnection.prototype.on = function(evname, cb, angularScope) {
