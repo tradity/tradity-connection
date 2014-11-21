@@ -285,16 +285,47 @@ SoTradeConnection.prototype.setKey = function(k) {
 	return this.keyStorage.setKey(k);
 };
 
+SoTradeConnection.prototype.once = function(evname, cb) {
+	cb = cb || function() {};
+	
+	var destroyCb = null;
+	
+	var fakeEventEmitter = {
+		on: function(evname, fn) {
+			destroyCb = fn;
+		}
+	};
+	
+	var deferred = this.q ? this.q.defer() : null;
+	
+	var cb_ = function() {
+		destroyCb();
+		
+		cb.apply(this, arguments);
+		
+		if (deferred)
+			deferred.resolve(Array.prototype.slice.apply(arguments));
+	};
+	
+	this.on(evname, cb_, fakeEventEmitter);
+};
+
 SoTradeConnection.prototype.on = function(evname, cb, angularScope) {
 	var index = (this.listeners[evname] = (this.listeners[evname] || [])).push(cb) - 1;
-	this.socket.on(evname, this.externallyCalled(cb));
+	
+	var cbExternal = this.externallyCalled(cb);
+	this.socket.on(evname, cbExternal);
 	
 	if (angularScope) {
 		var self = this;
 		
-		var listenerDelete = function() { delete self.listeners[evname][index]; };
+		var listenerDelete = function() {
+			delete self.listeners[evname][index];
+			self.socket.removeListener(evname, cbExternal);
+		};
 		
-		angularScope.$on('$destroy', listenerDelete);
+		if (angularScope.$on) angularScope.$on('$destroy', listenerDelete);
+		if (angularScope.on)  angularScope.on ('destroy',  listenerDelete);
 	}
 };
 
