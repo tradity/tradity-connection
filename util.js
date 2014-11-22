@@ -46,8 +46,25 @@ if (typeof exports != 'undefined' && exports) {
 			var h = crypto.createHash('sha256');
 			h.end(s);
 			return h.read().toString('hex');
-		}
+		};
+		
+		var deepupdate = function (orig, u /*, ... */) {
+			if (!orig || !u)
+				return orig;
+			
+			_.chain(u).keys().each(function(k) {
+				if (_.isObject(u[k]) && _.isObject(orig[k]) && !_.isArray(u[k]))
+					orig[k] = deepupdate(orig[k], u[k]);
+				else
+					orig[k] = u[k];
+			});
+			
+			var args = Array.prototype.slice.call(arguments);
+			args.splice(1, 1); // remove u
+			return deepupdate.apply(this, args);
+		};
 		
 		exports.sha256 = sha256;
+		exports.deepupdate = deepupdate;
 	}
 }
