@@ -204,8 +204,10 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	if (this.getKey() && !data.key)
 		data.key = this.getKey();
 	
+	var deferred = this.q ? this.q.defer() : null;
 	var now = (new Date()).getTime();
 	var cacheTime = data._cache * 1000;
+
 	if (cacheTime) {
 		var qcid_obj = $.extend(true, {}, data);
 		delete qcid_obj._cache;
@@ -218,8 +220,12 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 				this.responseHandler(entry);
 				if (cb)
 					cb(entry);
+
+				if (deferred)
+					deferred.resolve(entry);
 			}).bind(this), 0);
-			return;
+
+			return deferred ? deferred.promise : null;
 		} 
 		
 		$.each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
