@@ -219,7 +219,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 				if (cb)
 					cb(entry);
 			}).bind(this), 0);
-			return;
+			return this.q ? this.q(entry) : null;
 		} 
 		
 		$.each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
