@@ -262,7 +262,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	
 	var emit = (function(data) { this.socket.emit('query', data); }).bind(this);
 	if (this.messageSigner && !data.__dont_sign__) {
-		this.messageSigner.createSignedMessage(data, function(signedData) {
+		this.messageSigner.createSignedMessage(data).then(function(signedData) {
 			emit({ signedContent: signedData });
 		});
 	} else {
