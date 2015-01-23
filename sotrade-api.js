@@ -22,6 +22,7 @@ var SoTradeConnection = function(opt) {
 	this.messageSigner = opt.messageSigner || null;
 	
 	this.qCache = {};
+	this.serverConfig = null;
 	
 	this._txPackets = 0;
 	this._rxPackets = 0;
@@ -101,6 +102,10 @@ SoTradeConnection.prototype.init = function() {
 		var args = data.args.slice();
 		args.unshift('~!');
 		this.datalog.apply(this, args);
+	}).bind(this));
+	
+	this.on('server-config', (function(data) {
+		this.serverConfig = data.config;
 	}).bind(this));
 };
 
