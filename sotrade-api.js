@@ -20,6 +20,7 @@ var SoTradeConnection = function(opt) {
 	
 	this.keyStorage = opt.keyStorage || SoTradeConnection.defaultKeyStorage();
 	this.messageSigner = opt.messageSigner || null;
+	this.noSignByDefault = opt.noSignByDefault || false;
 	
 	this.qCache = {};
 	this.serverConfig = null;
@@ -272,7 +273,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	this.datalog('>', data);
 	
 	var emit = (function(data) { this.socket.emit('query', data); }).bind(this);
-	if (this.messageSigner && !data.__dont_sign__) {
+	if (this.messageSigner && ((!data.__dont_sign__ && !this.noSignByDefault) || data.__sign__)) {
 		this.messageSigner.createSignedMessage(data).then(function(signedData) {
 			emit({ signedContent: signedData });
 		});
