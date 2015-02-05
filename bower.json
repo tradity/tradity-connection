@@ -14,5 +14,6 @@
   "keywords": [
     "tradity"
   ],
+  "ignore": ["*.md"],
   "license": "MPL-2.0"
 }
