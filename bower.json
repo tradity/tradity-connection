@@ -1,0 +1,18 @@
+{
+  "name": "tradity-connection",
+  "main": "index.js",
+  "version": "0.6.0",
+  "homepage": "https://github.com/tradity/tradity-connection",
+  "authors": [
+    "Tradity.de Tech Team <tech@tradity.de>"
+  ],
+  "description": "Tradity.de connection management",
+  "moduleType": [
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "tradity"
+  ],
+  "license": "MPL-2.0"
+}
