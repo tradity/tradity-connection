@@ -275,7 +275,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 		
 	data.pv = this.protocolVersion();
 	
-	if (clientSoftwareVersion)
+	if (this.clientSoftwareVersion)
 		data.cs = this.clientSoftwareVersion;
 	
 	this.datalog('>', data);
