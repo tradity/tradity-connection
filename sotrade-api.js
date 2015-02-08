@@ -15,6 +15,7 @@ var SoTradeConnection = function(opt) {
 	this.lzma = opt.lzma || null;
 	this.protocolVersion = function() { return 1; };
 	this.q = opt.q;
+	this.clientSoftwareVersion = opt.clientSoftwareVersion || null;
 	
 	var logDevCheck = opt.logDevCheck || false, logSrvCheck = opt.logSrvCheck || false;
 	if (logDevCheck === !!logDevCheck) logDevCheck = function() { return opt.logDevCheck; };
@@ -273,6 +274,9 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 		data.lzma = 1;
 		
 	data.pv = this.protocolVersion();
+	
+	if (clientSoftwareVersion)
+		data.cs = this.clientSoftwareVersion;
 	
 	this.datalog('>', data);
 	
