@@ -407,9 +407,11 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	
 	this._txPackets++;
 	
-	if (this.lzma)
+	if (this.lzma) {
 		data.lzma = 1;
-		
+		data.csupp = {lzma: 1, s:1}; /* support lzma, split compression */
+	}
+	
 	data.pv = this.protocolVersion();
 	
 	if (this.clientSoftwareVersion)
@@ -535,22 +537,54 @@ SoTradeConnection.prototype.on = function(evname, cb, angularScope) {
  */
 SoTradeConnection.prototype.unwrap = function(data, cb) {
 	var recvTime = new Date().getTime();
+	var decsize = 0, encsize = 0;
+	
 	(this.lzma && data.e == 'lzma' ? function(cont) {
-		this.lzma.decompress(new Uint8Array(data.s), cont);
+		this.lzma.decompress(new Uint8Array(data.s), function(s) {
+			var decoded = JSON.parse(s);
+			decsize = decoded.length;
+			encsize = data.s.byteLength || data.s.length;
+			return cont(decoded);
+		});
+	} : this.lzma && data.e == 'split' ? function(cont) {
+		/* split compression support */
+		var decoded = {};
+		var decodedCount = 0;
+		
+		if (data.s.length == 0)
+			return cont({});
+		
+		for (var i = 0; i < data.s.length; ++i) {
+			encsize += data.s[i].s.byteLength || data.s[i].s.length;
+			(data.s[i].e == 'raw' ? function(contD) {
+				return contD(data.s[i].s);
+			} : function(contD) {
+				return this.lzma.decompress(new Uint8Array(data.s[i].s), contD);
+			}).bind(this)(function(s) {
+				decsize += s.length;
+				var obj = JSON.parse(s);
+				for (var i in obj)
+					decoded[i] = obj[i];
+				
+				if (data.s.length == ++decodedCount)
+					return cont(decoded);
+			});
+		}
 	} : function(cont) {
 		if (data.e != 'raw') {
 			console.warn(data);
 			throw new Error('Unknown/unsupported encoding: ' + data.e);
 		}
 		
-		cont(data.s);
-	}).bind(this)(function(decoded) {
-		var e = JSON.parse(decoded);
+		decsize = data.s.length;
+		encsize = data.s.length;
+		cont(JSON.parse(data.s));
+	}).bind(this)(function(e) {
 		e._t_crecv = recvTime;
 		e._t_ssend = data.t;
 		e._t_cdeco = new Date().getTime();
-		e._resp_encsize = data.s.byteLength || data.s.length;
-		e._resp_decsize = decoded.length;
+		e._resp_encsize = encsize;
+		e._resp_decsize = decsize;
 		cb(e);
 	});
 };
