@@ -300,14 +300,20 @@ SoTradeConnection.prototype.responseHandler = function(data) {
 				data[i] = waitentry.prefill[i];
 	}
 	
-	if (this.logDevCheck()) {
-		data._dt_cdelta   = data._t_crecv - data._t_csend;
-		data._dt_inqueue  = data._t_srecv - data._t_csend;
-		data._dt_sdelta   = data._t_ssend - data._t_srecv;
-		data._dt_outqueue = data._t_crecv - data._t_ssend;
-		data._dt_scomp    = data._t_ssend - data._t_sdone;
-		data._dt_ccomp    = data._t_cdeco - data._t_crecv;
-	}
+	var _t = data._t;
+	
+	_t.csend = data._t_csend; delete data._t_csend; // comes from waitentry.prefill
+	_t.sdone = data._t_sdone; delete data._t_sdone; // comes from server
+	_t.srecv = data._t_srecv; delete data._t_srecv; // comes from server
+
+	data._dt = {
+		cdelta:   _t.crecv - _t.csend,
+		inqueue:  _t.srecv - _t.csend,
+		sdelta:   _t.ssend - _t.srecv,
+		outqueue: _t.crecv - _t.ssend,
+		scomp:    _t.ssend - _t.sdone,
+		ccomp:    _t.cdeco - _t.crecv
+	};
 	
 	this._rxPackets++;
 	
@@ -542,7 +548,7 @@ SoTradeConnection.prototype.unwrap = function(data, cb) {
 	(this.lzma && data.e == 'lzma' ? function(cont) {
 		this.lzma.decompress(new Uint8Array(data.s), function(s) {
 			var decoded = JSON.parse(s);
-			decsize = decoded.length;
+			decsize = s.length;
 			encsize = data.s.byteLength || data.s.length;
 			return cont(decoded);
 		});
@@ -580,9 +586,10 @@ SoTradeConnection.prototype.unwrap = function(data, cb) {
 		encsize = data.s.length;
 		cont(JSON.parse(data.s));
 	}).bind(this)(function(e) {
-		e._t_crecv = recvTime;
-		e._t_ssend = data.t;
-		e._t_cdeco = new Date().getTime();
+		e._t = e._t || {};
+		e._t.crecv = recvTime;
+		e._t.ssend = data.t;
+		e._t.cdeco = new Date().getTime();
 		e._resp_encsize = encsize;
 		e._resp_decsize = decsize;
 		cb(e);
