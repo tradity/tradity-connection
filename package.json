@@ -1,7 +1,7 @@
 {
 	"name": "tradity-connection",
 	"main": "index.js",
-	"version": "0.7.1",
+	"version": "0.7.2",
 	"homepage": "https://github.com/tradity/tradity-connection",
 	"author": {
 		"name": "Tradity.de Tech Team",
@@ -16,5 +16,8 @@
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/tradity/tradity-connection.git"
+	},
+	"dependencies": {
+		"debug": "~2.2.0"
 	}
 }

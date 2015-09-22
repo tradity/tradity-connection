@@ -4,9 +4,33 @@
 
 'use strict';
 
+var SoTradeConnection;
+
+(function() {
+
+/* this function replaces itself during its first invocation for lazy loading */
+var dbg = function() {
+	var debugModule;
+	try {
+		debugModule = require('debug');
+	} catch (e1) {
+		try {
+			debugModule = debug || (window && window.debug);
+		} catch(e2) {
+			console.error(e1, e2);
+			
+			debugModule = function(topic) { return console.log.bind(console, topic); };
+		}
+	}
+	
+	dbg = debugModule('sotrade:api');
+	
+	return dbg.apply(this, arguments);
+};
+
 /**
  * Provides {@link module:sotrade-api~SoTradeConnection}.
- * This module can be directly included or <code<require()</code>'d.
+ * This module can be directly included or <code>require()</code>'d.
  * 
  * @public
  * @module sotrade-api
@@ -56,7 +80,7 @@
  * @public
  * @constructor module:sotrade-api~SoTradeConnection
  */
-var SoTradeConnection = function(opt) {
+SoTradeConnection = function(opt) {
 	this.connect = opt.connect;
 	this.socket = null;
 	this.applyWrap = opt.applyWrap || function(f) { f(); };
@@ -136,16 +160,6 @@ SoTradeConnection.prototype.externallyCalled = function(fn) {
 };
 
 /**
- * If debug mode is enabled, log any arguments to <code>console</code>.
- * 
- * @function module:sotrade-api~SoTradeConnection#datalog
- */
-SoTradeConnection.prototype.datalog = function() {
-	if (this.logDevCheck())
-		return console.log.apply(console, arguments);
-};
-
-/**
  * Sets up the underlying socket.io connection and listeners on that socket.
  * 
  * @function module:sotrade-api~SoTradeConnection#init
@@ -159,7 +173,7 @@ SoTradeConnection.prototype.init = function() {
 	
 	this.socket.on('push', this.externallyCalled(function(wdata) {
 		this.unwrap(wdata, (function(data) {
-			this.datalog('!', data);
+			dbg('in:push', data);
 			
 			this._rxPackets++;
 			this.invokeListeners(data);
@@ -169,7 +183,7 @@ SoTradeConnection.prototype.init = function() {
 	this.socket.on('push-container', this.externallyCalled(function(wdata) {
 		this.unwrap(wdata, (function(data) {
 			if (data.type != 'debug-info') // server debug info only in server debug mode
-				this.datalog('!', data);
+				dbg('in:push-container', data);
 			
 			this._rxPackets++;
 			
@@ -190,8 +204,8 @@ SoTradeConnection.prototype.init = function() {
 	
 	this.on('debug-info', (function(data) {
 		var args = data.args.slice();
-		args.unshift('~!');
-		this.datalog.apply(this, args);
+		args.unshift('dbg');
+		dbg.apply(dbg, args);
 	}).bind(this));
 	
 	this.on('server-config', (function(data) {
@@ -317,7 +331,7 @@ SoTradeConnection.prototype.responseHandler = function(data) {
 	
 	this._rxPackets++;
 	
-	this.datalog('<', data);
+	dbg('Incoming', data);
 	
 	delete this.pendingIDs[numericID];
 	
@@ -423,7 +437,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	if (this.clientSoftwareVersion)
 		data.cs = this.clientSoftwareVersion;
 	
-	this.datalog('>', data);
+	dbg('Outgoing', data);
 	
 	var emit = (function(data) { this.socket.emit('query', data); }).bind(this);
 	if (this.messageSigner && ((!data.__dont_sign__ && !this.noSignByDefault) || data.__sign__)) {
@@ -455,7 +469,7 @@ SoTradeConnection.prototype.getKey = function() {
  * @function module:sotrade-api~SoTradeConnection#setKey
  */
 SoTradeConnection.prototype.setKey = function(k) {
-	this.datalog('#', 'key = ' + k);
+	dbg('Set session key', k);
 	
 	if (k != this.keyStorage.getKey()) {
 		this.qCache = {};
@@ -545,6 +559,7 @@ SoTradeConnection.prototype.unwrap = function(data, cb) {
 	var recvTime = new Date().getTime();
 	var decsize = 0, encsize = 0;
 	
+	dbg('Message with encoding', data.e);
 	(this.lzma && data.e == 'lzma' ? function(cont) {
 		this.lzma.decompress(new Uint8Array(data.s), function(s) {
 			var decoded = JSON.parse(s);
@@ -609,6 +624,8 @@ SoTradeConnection.prototype.txPackets = function() { return this._txPackets; };
  * @function module:sotrade-api~SoTradeConnection#rxPackets
  */
 SoTradeConnection.prototype.rxPackets = function() { return this._rxPackets; };
+
+})();
 
 if (typeof exports != 'undefined' && exports)
 	exports.SoTradeConnection = SoTradeConnection;
