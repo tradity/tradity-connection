@@ -561,7 +561,10 @@ SoTradeConnection.prototype.unwrap = function(data, cb) {
 	
 	dbg('Message with encoding', data.e);
 	(this.lzma && data.e == 'lzma' ? function(cont) {
-		this.lzma.decompress(new Uint8Array(data.s), function(s) {
+		this.lzma.decompress(new Uint8Array(data.s), function(s, e) {
+			if (e)
+				throw e;
+			
 			var decoded = JSON.parse(s);
 			decsize = s.length;
 			encsize = data.s.byteLength || data.s.length;
@@ -581,7 +584,10 @@ SoTradeConnection.prototype.unwrap = function(data, cb) {
 				return contD(data.s[i].s);
 			} : function(contD) {
 				return this.lzma.decompress(new Uint8Array(data.s[i].s), contD);
-			}).bind(this)(function(s) {
+			}).bind(this)(function(s, e) {
+				if (e)
+					throw e;
+				
 				decsize += s.length;
 				var obj = JSON.parse(s);
 				for (var i in obj)
