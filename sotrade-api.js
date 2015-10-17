@@ -165,52 +165,53 @@ SoTradeConnection.prototype.externallyCalled = function(fn) {
  * @function module:sotrade-api~SoTradeConnection#init
  */
 SoTradeConnection.prototype.init = function() {
-	this.socket = this.connect();
+	var self = this;
+	var throwUncaughtException = function(e) {
+		setTimeout(function() { throw e; }, 0);
+	};
 	
-	this.socket.on('response', this.externallyCalled(function(wdata) {
-		this.unwrap(wdata, this.responseHandler.bind(this));
+	self.socket = self.connect();
+	
+	self.socket.on('response', self.externallyCalled(function(wdata) {
+		self.unwrap(wdata).then(self.responseHandler.bind(self)).catch(throwUncaughtException);
 	}));
 	
-	this.socket.on('push', this.externallyCalled(function(wdata) {
-		this.unwrap(wdata, (function(data) {
+	self.socket.on('push', self.externallyCalled(function(wdata) {
+		self.unwrap(wdata).then(function(data) {
 			dbg('in:push', data);
 			
-			this._rxPackets++;
-			this.invokeListeners(data);
-		}).bind(this));
+			self._rxPackets++;
+			self.invokeListeners(data);
+		}).catch(throwUncaughtException);
 	}));
 	
-	this.socket.on('push-container', this.externallyCalled(function(wdata) {
-		this.unwrap(wdata, (function(data) {
+	self.socket.on('push-container', self.externallyCalled(function(wdata) {
+		self.unwrap(wdata).then(function(data) {
 			if (data.type != 'debug-info') // server debug info only in server debug mode
 				dbg('in:push-container', data);
 			
-			this._rxPackets++;
+			self._rxPackets++;
 			
 			for (var i = 0; i < data.pushes.length; ++i)
-				this.invokeListeners(data.pushes[i]);
-		}).bind(this));
+				self.invokeListeners(data.pushes[i]);
+		}).catch(throwUncaughtException);
 	}));
 	
-	this.socket.on('disconnect', this.externallyCalled(function(reason) {
-		setTimeout((function() {
-			this.reconnect();
-		}).bind(this), 2300);
+	self.socket.on('disconnect', self.externallyCalled(function(reason) {
+		setTimeout(self.reconnect.bind(self), 2300);
 	}));
 	
-	this.on('internal-server-error', (function() {
-		this.resetExpectedResponses();
-	}).bind(this));
+	self.on('internal-server-error', self.resetExpectedResponses.bind(self));
 	
-	this.on('debug-info', (function(data) {
+	self.on('debug-info', function(data) {
 		var args = data.args.slice();
 		args.unshift('dbg');
 		dbg.apply(dbg, args);
-	}).bind(this));
+	});
 	
-	this.on('server-config', (function(data) {
-		this.serverConfig = data.config;
-	}).bind(this));
+	self.on('server-config', function(data) {
+		self.serverConfig = data.config;
+	});
 };
 
 /**
@@ -256,6 +257,7 @@ SoTradeConnection.prototype.hasOpenQueries = function() {
 	for (var i in this.pendingIDs)
 		if (this.pendingIDs[i] && !this.pendingIDs[i]._expect_no_response)
 			return true;
+	
 	return false;
 };
 
@@ -304,7 +306,7 @@ SoTradeConnection.prototype.responseHandler = function(data) {
 		this.setKey(data.key);
 	
 	data.type = type;
-		
+	
 	var numericID = parseInt(rid[1]);
 	var waitentry = this.pendingIDs[numericID];
 	
@@ -372,7 +374,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	if (this.getKey() && !data.key)
 		data.key = this.getKey();
 	
-	var deferred = this.q ? this.q.defer() : null;
+	var deferred = this.q.defer();
 	var now = (new Date()).getTime();
 	var cacheTime = data._cache * 1000;
 
@@ -389,17 +391,20 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 				if (cb)
 					cb(entry);
 
-				if (deferred)
-					deferred.resolve(entry);
+				deferred.resolve(entry);
 			}).bind(this), 0);
 
-			return deferred ? deferred.promise : null;
+			return deferred.promise;
 		} 
 		
+		// flush outdated cache entries
 		$.each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
 		
 		// cache miss
 		delete this.qCache[qcid];
+		
+		// add handler to called *before* the actual callback,
+		// which inserts the result into the cache table
 		var oldCB = cb;
 		cb = (function(entry) {
 			// insert into cache
@@ -415,8 +420,6 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	var prefill = data._prefill || {};
 	prefill._t_csend = new Date().getTime();
 	prefill._reqsize = JSON.stringify(data).length;
-	
-	var deferred = this.q ? this.q.defer() : null;
 	
 	this.pendingIDs[id] = {
 		cb: cb,
@@ -451,7 +454,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	if (evname == 'logout') 
 		this.setKey(null);
 	
-	return deferred ? deferred.promise : null;
+	return deferred.promise;
 };
 
 /**
@@ -498,7 +501,7 @@ SoTradeConnection.prototype.once = function(evname, cb) {
 		}
 	};
 	
-	var deferred = this.q ? this.q.defer() : null;
+	var deferred = this.q.defer();
 	
 	var cb_ = function() {
 		destroyCb();
@@ -551,69 +554,63 @@ SoTradeConnection.prototype.on = function(evname, cb, angularScope) {
  * (time of receival, decode time, encoded/decoded size).
  * 
  * @param {object} data  A raw server response.
- * @param {function} cb  A function that will be invoked with the decoded response.
+ * 
+ * @return {object} A promise for the decoded response
  * 
  * @function module:sotrade-api~SoTradeConnection#unwrap
  */
-SoTradeConnection.prototype.unwrap = function(data, cb) {
+SoTradeConnection.prototype.unwrap = function(data) {
 	var recvTime = new Date().getTime();
 	var decsize = 0, encsize = 0;
 	
 	dbg('Message with encoding', data.e);
-	(this.lzma && data.e == 'lzma' ? function(cont) {
-		this.lzma.decompress(new Uint8Array(data.s), function(s, e) {
-			if (e)
-				throw e;
-			
-			var decoded = JSON.parse(s);
-			decsize = s.length;
-			encsize = data.s.byteLength || data.s.length;
-			return cont(decoded);
-		});
-	} : this.lzma && data.e == 'split' ? function(cont) {
-		/* split compression support */
-		var decoded = {};
-		var decodedCount = 0;
-		
-		if (data.s.length == 0)
-			return cont({});
-		
-		for (var i = 0; i < data.s.length; ++i) {
-			encsize += data.s[i].s.byteLength || data.s[i].s.length;
-			(data.s[i].e == 'raw' ? function(contD) {
-				return contD(data.s[i].s);
-			} : function(contD) {
-				return this.lzma.decompress(new Uint8Array(data.s[i].s), contD);
-			}).bind(this)(function(s, e) {
-				if (e)
-					throw e;
-				
-				decsize += s.length;
-				var obj = JSON.parse(s);
-				for (var i in obj)
-					decoded[i] = obj[i];
-				
-				if (data.s.length == ++decodedCount)
-					return cont(decoded);
+	var self = this;
+	var q = self.q;
+	
+	return q.when().then(function() {
+		if (data.e === 'lzma' && self.lzma) {
+			return self.lzma.decompress(new Uint8Array(data.s)).then(function(s) {
+				var decoded = JSON.parse(s);
+				decsize = s.length;
+				encsize = data.s.byteLength || data.s.length;
+				return decoded;
 			});
-		}
-	} : function(cont) {
-		if (data.e != 'raw') {
-			console.warn(data);
-			throw new Error('Unknown/unsupported encoding: ' + data.e);
+		} else if (data.e == 'split' && self.lzma) {
+			/* split compression support */
+			var decoded = {};
+			var decodedCount = 0;
+			
+			if (data.s.length == 0)
+				return {};
+			
+			return q.all(data.s.map(function(piece) {
+				encsize += piece.s.byteLength || piece.s.length;
+				
+				return self.unwrap(piece).then(function(s) {
+					decsize += s.length;
+					
+					var obj = s;
+					for (var i in obj)
+						decoded[i] = obj[i];
+				});
+			})).then(function() {
+				return decoded;
+			});
+		} else if (data.e === 'raw') {
+			decsize = data.s.length;
+			encsize = data.s.length;
+			return JSON.parse(data.s);
 		}
 		
-		decsize = data.s.length;
-		encsize = data.s.length;
-		cont(JSON.parse(data.s));
-	}).bind(this)(function(e) {
+		return q.reject('Unknown/unsupported encoding: ' + data.e);
+	}).then(function(e) {
 		e._t = e._t || {};
 		e._t.crecv = recvTime;
 		e._t.ssend = data.t;
 		e._t.cdeco = new Date().getTime();
 		e._resp_encsize = encsize;
 		e._resp_decsize = decsize;
-		cb(e);
+		return e;
 	});
 };
 
