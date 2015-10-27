@@ -279,6 +279,7 @@ SoTradeConnection.prototype.invokeListeners = function(data, waitentry) {
 	
 	// general listeners
 	var listeners = (this.listeners[type] || []).concat(this.listeners['*'] || []);
+	
 	for (var i = 0; i < listeners.length; ++i) 
 		if (listeners[i])
 			listeners[i](data);
@@ -508,8 +509,7 @@ SoTradeConnection.prototype.once = function(evname, cb) {
 		
 		cb.apply(this, arguments);
 		
-		if (deferred)
-			deferred.resolve(Array.prototype.slice.apply(arguments));
+		deferred.resolve(Array.prototype.slice.apply(arguments));
 	};
 	
 	this.on(evname, cb_, fakeEventEmitter);
