@@ -153,9 +153,11 @@ SoTradeConnection.prototype.externallyCalled = function(fn) {
 	return function() {
 		var args = arguments;
 		
-		return self.applyWrap(function() {
-			return fn.apply(self, args);
-		});
+		setTimeout(function() {
+			return self.applyWrap(function() {
+				return fn.apply(self, args);
+			});
+		}, 0);
 	};
 };
 
