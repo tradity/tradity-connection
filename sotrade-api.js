@@ -28,6 +28,32 @@ var dbg = function() {
 	return dbg.apply(this, arguments);
 };
 
+var deepExtend = function(out) {
+	out = out || {};
+
+	for (var i = 1; i < arguments.length; i++) {
+		var obj = arguments[i];
+
+		if (!obj)
+			continue;
+
+		for (var key in obj) {
+			if (obj.hasOwnProperty(key)) {
+				if (typeof obj[key] === 'object')
+					deepExtend(out[key], obj[key]);
+				else
+					out[key] = obj[key];
+			}
+		}
+	}
+	return out;
+};
+
+function each(obj, fn) {
+	if (obj.length) for (var i = 0, ol = obj.length, v = obj[0]; i < ol && fn(v, i) !== false; v = obj[++i]);
+	else for (var p in obj) if (fn(obj[p], p) === false) break;
+};
+
 /**
  * Provides {@link module:sotrade-api~SoTradeConnection}.
  * This module can be directly included or <code>require()</code>'d.
@@ -382,7 +408,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	var cacheTime = data._cache * 1000;
 
 	if (cacheTime) {
-		var qcid_obj = $.extend(true, {}, data);
+		var qcid_obj = deepExtend({}, data);
 		delete qcid_obj._cache;
 		delete qcid_obj.id;
 		var qcid = JSON.stringify(qcid_obj);
@@ -401,7 +427,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 		} 
 		
 		// flush outdated cache entries
-		$.each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
+		each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
 		
 		// cache miss
 		delete this.qCache[qcid];
