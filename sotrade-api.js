@@ -28,30 +28,15 @@ var dbg = function() {
 	return dbg.apply(this, arguments);
 };
 
-var deepExtend = function(out) {
-	out = out || {};
-
-	for (var i = 1; i < arguments.length; i++) {
-		var obj = arguments[i];
-
-		if (!obj)
-			continue;
-
-		for (var key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				if (typeof obj[key] === 'object')
-					deepExtend(out[key], obj[key]);
-				else
-					out[key] = obj[key];
-			}
-		}
-	}
-	return out;
-};
-
-function each(obj, fn) {
-	if (obj.length) for (var i = 0, ol = obj.length, v = obj[0]; i < ol && fn(v, i) !== false; v = obj[++i]);
-	else for (var p in obj) if (fn(obj[p], p) === false) break;
+var deepCopy = function(obj) {
+	if (!obj || typeof obj !== 'object')
+		return obj;
+	
+	var copy = {};
+	for (var key in obj)
+		if (obj.hasOwnProperty(key))
+			copy[key] = deepCopy(obj[key]);
+	return copy;
 };
 
 /**
@@ -408,7 +393,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	var cacheTime = data._cache * 1000;
 
 	if (cacheTime) {
-		var qcid_obj = deepExtend({}, data);
+		var qcid_obj = deepCopy(data);
 		delete qcid_obj._cache;
 		delete qcid_obj.id;
 		var qcid = JSON.stringify(qcid_obj);
@@ -427,7 +412,12 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 		} 
 		
 		// flush outdated cache entries
-		each(Object.keys(this.qCache), (function(i, k) { if (now > this.qCache[k]._cache_ptime) delete this.qCache[k]; }).bind(this));
+		var qCacheKeys = Object.keys(this.qCache);
+		for (var i = 0; i < qCacheKeys.length; ++i) {
+			var k = qCacheKeys[i];
+			if (now > this.qCache[k]._cache_ptime)
+				delete this.qCache[k];
+		}
 		
 		// cache miss
 		delete this.qCache[qcid];
