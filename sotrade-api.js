@@ -73,7 +73,7 @@ var deepCopy = function(obj) {
  *             It should provide the <a href="https://github.com/nmrugg/LZMA-JS">LZMA-JS</a>
  *             interface, i.e. an <code>decompress</code> method as described there.
  * @property {function} protocolVersion  A function returning a currently supported protocol version.
- * @property {object} q  A Promise/A+ implementation (e.g. <code>Promise</code> or <code>$q</code>).
+ * @property {?object} Promise  A Promise/A+ implementation (e.g. <code>Promise</code> or <code>$q</code>).
  * @property {?string} clientSoftwareVersion  An optional version identifier for this client.
  * @property {function} logDevCheck  A function returning whether to log incoming/outgoing packets
  * @property {function} logSrvCheck  A function returning whether to log server debugging information
@@ -100,7 +100,7 @@ SoTradeConnection = function(opt) {
 	this.id = 0;
 	this.lzma = opt.lzma || null;
 	this.protocolVersion = function() { return 1; };
-	this.q = opt.q || (typeof Promise !== 'undefined' ? Promise : null);
+	this.Promise = opt.Promise || (typeof Promise !== 'undefined' ? Promise : null);
 	this.clientSoftwareVersion = opt.clientSoftwareVersion || null;
 	
 	var logDevCheck = opt.logDevCheck || false, logSrvCheck = opt.logSrvCheck || false;
@@ -388,7 +388,7 @@ SoTradeConnection.prototype.emit = function(evname, data, cb) {
 	if (this.getKey() && !data.key)
 		data.key = this.getKey();
 	
-	var deferred = this.q.defer();
+	var deferred = this.Promise.defer();
 	var now = (new Date()).getTime();
 	var cacheTime = data._cache * 1000;
 
@@ -520,7 +520,7 @@ SoTradeConnection.prototype.once = function(evname, cb) {
 		}
 	};
 	
-	var deferred = this.q.defer();
+	var deferred = this.Promise.defer();
 	
 	var cb_ = function() {
 		destroyCb();
@@ -583,9 +583,8 @@ SoTradeConnection.prototype.unwrap = function(data) {
 	
 	dbg('Message with encoding', data.e);
 	var self = this;
-	var q = self.q;
 	
-	return q.resolve().then(function() {
+	return self.Promise.resolve().then(function() {
 		if (data.e === 'lzma' && self.lzma) {
 			return self.lzma.decompress(new Uint8Array(data.s)).then(function(s) {
 				var decoded = JSON.parse(s);
@@ -601,7 +600,7 @@ SoTradeConnection.prototype.unwrap = function(data) {
 			if (data.s.length == 0)
 				return {};
 			
-			return q.all(data.s.map(function(piece) {
+			return self.Promise.all(data.s.map(function(piece) {
 				encsize += piece.s.byteLength || piece.s.length;
 				
 				return self.unwrap(piece).then(function(s) {
@@ -620,7 +619,7 @@ SoTradeConnection.prototype.unwrap = function(data) {
 			return JSON.parse(data.s);
 		}
 		
-		return q.reject(new Error('Unknown/unsupported encoding: ' + data.e));
+		return self.Promise.reject(new Error('Unknown/unsupported encoding: ' + data.e));
 	}).then(function(e) {
 		e._t = e._t || {};
 		e._t.crecv = recvTime;
