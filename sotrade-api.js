@@ -73,7 +73,7 @@ var deepCopy = function(obj) {
  *             It should provide the <a href="https://github.com/nmrugg/LZMA-JS">LZMA-JS</a>
  *             interface, i.e. an <code>decompress</code> method as described there.
  * @property {function} protocolVersion  A function returning a currently supported protocol version.
- * @property {object} q  An implementation of the <code>Q</code> library (e.g. <code>$q</code>).
+ * @property {object} q  A Promise/A+ implementation (e.g. <code>Promise</code> or <code>$q</code>).
  * @property {?string} clientSoftwareVersion  An optional version identifier for this client.
  * @property {function} logDevCheck  A function returning whether to log incoming/outgoing packets
  * @property {function} logSrvCheck  A function returning whether to log server debugging information
@@ -100,7 +100,7 @@ SoTradeConnection = function(opt) {
 	this.id = 0;
 	this.lzma = opt.lzma || null;
 	this.protocolVersion = function() { return 1; };
-	this.q = opt.q;
+	this.q = opt.q || (typeof Promise !== 'undefined' ? Promise : null);
 	this.clientSoftwareVersion = opt.clientSoftwareVersion || null;
 	
 	var logDevCheck = opt.logDevCheck || false, logSrvCheck = opt.logSrvCheck || false;
@@ -585,7 +585,7 @@ SoTradeConnection.prototype.unwrap = function(data) {
 	var self = this;
 	var q = self.q;
 	
-	return q.when().then(function() {
+	return q.resolve().then(function() {
 		if (data.e === 'lzma' && self.lzma) {
 			return self.lzma.decompress(new Uint8Array(data.s)).then(function(s) {
 				var decoded = JSON.parse(s);
@@ -620,7 +620,7 @@ SoTradeConnection.prototype.unwrap = function(data) {
 			return JSON.parse(data.s);
 		}
 		
-		return q.reject('Unknown/unsupported encoding: ' + data.e);
+		return q.reject(new Error('Unknown/unsupported encoding: ' + data.e));
 	}).then(function(e) {
 		e._t = e._t || {};
 		e._t.crecv = recvTime;
